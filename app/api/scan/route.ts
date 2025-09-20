@@ -1,39 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/db'
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export async function POST(req: NextRequest) {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export async function GET(req: Request) {
   try {
-    const body = await req.json()
-    const { tagId } = body
+    const { searchParams } = new URL(req.url);
+    const productId = searchParams.get('id');
 
-    if (!tagId) {
-      return NextResponse.json({ error: 'tagId is required' }, { status: 400 })
+    if (!productId) {
+      return NextResponse.json({ error: 'Missing product id' }, { status: 400 });
     }
 
-    const { data: tag, error } = await supabaseAdmin
-      .from('tags')
+    const { data, error } = await supabase
+      .from('products')
       .select('*')
-      .eq('tag_code', tagId)
-      .single()
+      .eq('id', productId)
+      .single();
 
-    if (error || !tag) {
-      return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
-    }
+    if (error) throw error;
 
-    if (!tag.opened_at) {
-      const now = new Date().toISOString()
-      const { error: upErr } = await supabaseAdmin
-        .from('tags')
-        .update({ opened_at: now, tamper_state: 'opened' })
-        .eq('id', tag.id)
-
-      if (upErr) {
-        return NextResponse.json({ error: 'Update failed' }, { status: 500 })
-      }
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (e: any) {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    return NextResponse.json(data);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
