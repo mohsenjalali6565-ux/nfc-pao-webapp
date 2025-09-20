@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabaseServer';
 import { getPAOEndDate } from '@/lib/pao';
-import TagStatusCard from '@/components/TagStatusCard';
+import ProductView from '@/components/ProductView'; // این خط را اصلاح کنید
 
 export default async function ProductPage({
   params,
@@ -29,7 +29,6 @@ export default async function ProductPage({
       })
       .eq('id', tagId);
     if (updateError) console.error('Error updating tag state:', updateError);
-
   }
 
   const { product, opened_at } = tag;
@@ -48,9 +47,9 @@ export default async function ProductPage({
           Batch Number: {tag?.batch?.lot_code || 'N/A'}
         </p>
         {paoEndDate ? (
-          <TagStatusCard status="opened" openedAt={opened_at} paoEndDate={paoEndDate.toISOString()} />
+          <ProductView status="opened" openedAt={opened_at} paoEndDate={paoEndDate.toISOString()} />
         ) : (
-          <TagStatusCard status="intact" />
+          <ProductView status="intact" />
         )}
       </div>
     </div>
