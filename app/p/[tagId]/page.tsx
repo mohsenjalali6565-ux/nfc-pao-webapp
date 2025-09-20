@@ -1,24 +1,60 @@
-import { supabaseAdmin } from '@/lib/db'
-import ProductView from '@/components/ProductView'
+import { notFound } from 'next/navigation';
+import { supabase } from '@/lib/supabaseServer';
+import { getPAOEndDate } from '@/lib/pao';
+import TagStatusCard from '@/components/TagStatusCard';
 
-type ParamsObj = { tagId: string }
+export default async function ProductPage({
+  params,
+}: {
+  params: { tagId: string };
+}) {
+  const { tagId } = params;
 
-async function resolveParams(paramsOrPromise: ParamsObj | Promise<ParamsObj>) {
-  return 'then' in (paramsOrPromise as any)
-    ? await (paramsOrPromise as Promise<ParamsObj>)
-    : (paramsOrPromise as ParamsObj)
-}
-
-export default async function ProductPage(props: { params: ParamsObj } | { params: Promise<ParamsObj> }) {
-  const { tagId } = await resolveParams((props as any).params)
-
-  const { data: tag } = await supabaseAdmin
+  const { data: tag, error } = await supabase
     .from('tags')
-    .select('tag_code, tamper_state, opened_at, batch_id, products(name, pao_months)')
-    .eq('tag_code', tagId)
-    .single()
+    .select('*, product:product_id(*), batch:batch_id(*)')
+    .eq('id', tagId)
+    .single();
 
-  if (!tag) return <div className="p-8">Tag not found</div>
+  if (error || !tag) {
+    return notFound();
+  }
 
-  return <ProductView tag={tag as any} />
+  if (tag.tamper_state === 'intact') {
+    const { error: updateError } = await supabase
+      .from('tags')
+      .update({
+        tamper_state: 'opened',
+        opened_at: new Date().toISOString(),
+      })
+      .eq('id', tagId);
+    if (updateError) console.error('Error updating tag state:', updateError);
+
+  }
+
+  const { product, opened_at } = tag;
+
+  const paoEndDate = opened_at
+    ? getPAOEndDate(opened_at, product?.pao_months || 0)
+    : null;
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="max-w-md w-full text-center">
+        <h1 className="text-3xl font-bold mb-2 text-gray-800">
+          {product?.name || 'Unknown Product'}
+        </h1>
+        <p className="text-gray-600 mb-4">
+          Batch Number: {tag?.batch?.lot_code || 'N/A'}
+        </p>
+        {paoEndDate ? (
+          <TagStatusCard status="opened" openedAt={opened_at} paoEndDate={paoEndDate.toISOString()} />
+        ) : (
+          <TagStatusCard status="intact" />
+        )}
+      </div>
+    </div>
+  );
 }
+
+export const revalidate = 0;
