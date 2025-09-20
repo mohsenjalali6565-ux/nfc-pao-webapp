@@ -1,26 +1,58 @@
-export const dynamic = 'force-dynamic'; // جلوگیری از prerender این route
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+// -------------------------
+// گرفتن URL و KEY از env
+// -------------------------
+const supabaseUrl =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-function getSupabase() {
-  const url =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseKey =
+  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !key) {
-    throw new Error('Missing Supabase env vars');
-  }
-  return createClient(url, key);
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("❌ Missing Supabase environment variables");
 }
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get('id');
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const supabase = getSupabase();
+// -------------------------
+// Route اصلی
+// -------------------------
+export async function POST(req: Request) {
+  try {
+    const body = await req.json();
 
-  // ... بقیه‌ی منطق فعلی‌ات (خواندن محصول/ثبت event و غیره)
-  return NextResponse.json({ ok: true });
+    // نمونه: فرض کنیم body شامل { tagId: "abc123" } هست
+    const { tagId } = body;
+
+    if (!tagId) {
+      return NextResponse.json(
+        { error: "tagId is required" },
+        { status: 400 }
+      );
+    }
+
+    // کوئری از جدول products
+    const { data, error } = await supabase
+      .from("products")
+      .select("*")
+      .eq("tagId", tagId)
+      .single();
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ data }, { status: 200 });
+  } catch (err: any) {
+    console.error("API Error:", err.message);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
 }
